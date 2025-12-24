@@ -1,0 +1,79 @@
+{
+  "name": "@acp-lsp/client",
+  "displayName": "ACP - AI Context Protocol",
+  "description": "IDE support for AI Context Protocol annotations and configuration",
+  "version": "0.1.0",
+  "publisher": "acp-protocol",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.acp.config.json",
+    "workspaceContains:**/.acp.cache.json",
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:python",
+    "onLanguage:rust",
+    "onLanguage:go",
+    "onLanguage:java",
+    "onLanguage:csharp",
+    "onLanguage:cpp"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "ACP Language Server",
+      "properties": {
+        "acp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the ACP language server"
+        },
+        "acp.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace communication with the language server"
+        },
+        "acp.validation.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable annotation validation"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "acp.rebuildCache",
+        "title": "ACP: Rebuild Cache"
+      },
+      {
+        "command": "acp.showConstraints",
+        "title": "ACP: Show Constraints for File"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "dev": "pnpm build --watch",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "@acp-lsp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.8",
+    "typescript": "^5.3.0"
+  }
+}

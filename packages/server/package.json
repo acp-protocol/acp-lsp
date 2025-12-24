@@ -1,0 +1,31 @@
+{
+  "name": "@acp-lsp/server",
+  "version": "0.1.0",
+  "description": "ACP Language Server",
+  "type": "module",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.0.8",
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1",
+    "chokidar": "^3.5.3",
+    "glob": "^10.3.10",
+    "@acp-lsp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
