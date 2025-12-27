@@ -1,0 +1,117 @@
+/**
+ * {{PASCAL_NAME}} - Cache integration service for ACP
+ * Generated: {{DATE}}
+ */
+import { readFile, stat } from 'fs/promises';
+import { EventEmitter } from 'events';
+import * as path from 'path';
+
+export interface CacheSymbol {
+  name: string;
+  qualified_name: string;
+  file: string;
+  lines: [number, number];
+  summary?: string;
+  signature?: string;
+  domains?: string[];
+  layer?: string;
+}
+
+export interface CacheFile {
+  path: string;
+  module?: string;
+  lines: number;
+  domains?: string[];
+  exports?: string[];
+}
+
+export interface CacheDomain {
+  name: string;
+  description?: string;
+  files: string[];
+  symbols: string[];
+}
+
+export interface StalenessReport {
+  isCacheStale: boolean;
+  staleFiles: string[];
+  lastGenerated: Date | null;
+  recommendation: 'ok' | 'rebuild-suggested' | 'rebuild-required';
+}
+
+export class {{PASCAL_NAME}} extends EventEmitter {
+  private cache: any = null;
+  private loaded = false;
+  private staleFiles: string[] = [];
+
+  constructor(private workspaceRoot: string) {
+    super();
+  }
+
+  async initialize(): Promise<void> {
+    await this.loadCache();
+  }
+
+  private async loadCache(): Promise<void> {
+    const cachePath = path.join(this.workspaceRoot, '.acp.cache.json');
+    
+    try {
+      const content = await readFile(cachePath, 'utf-8');
+      this.cache = JSON.parse(content);
+      this.loaded = true;
+      this.emit('loaded');
+    } catch (error) {
+      this.loaded = false;
+      this.emit('error', error);
+    }
+  }
+
+  async getSymbol(qualifiedName: string): Promise<CacheSymbol | null> {
+    if (!this.cache?.symbols) return null;
+    return this.cache.symbols[qualifiedName] || null;
+  }
+
+  async getFile(filePath: string): Promise<CacheFile | null> {
+    if (!this.cache?.files) return null;
+    return this.cache.files[filePath] || null;
+  }
+
+  async getDomain(name: string): Promise<CacheDomain | null> {
+    if (!this.cache?.domains) return null;
+    return this.cache.domains[name] || null;
+  }
+
+  async getCallers(qualifiedName: string): Promise<string[]> {
+    if (!this.cache?.graph?.reverse) return [];
+    return this.cache.graph.reverse[qualifiedName] || [];
+  }
+
+  async getCallees(qualifiedName: string): Promise<string[]> {
+    if (!this.cache?.graph?.forward) return [];
+    return this.cache.graph.forward[qualifiedName] || [];
+  }
+
+  async getFilesByLockLevel(level: string): Promise<string[]> {
+    if (!this.cache?.constraints?.by_lock_level) return [];
+    return this.cache.constraints.by_lock_level[level] || [];
+  }
+
+  getStalenessReport(): StalenessReport {
+    return {
+      isCacheStale: this.staleFiles.length > 0,
+      staleFiles: this.staleFiles,
+      lastGenerated: this.cache?.generated_at 
+        ? new Date(this.cache.generated_at) 
+        : null,
+      recommendation: this.staleFiles.length === 0 
+        ? 'ok'
+        : this.staleFiles.length > 10 
+          ? 'rebuild-required' 
+          : 'rebuild-suggested',
+    };
+  }
+
+  isLoaded(): boolean {
+    return this.loaded;
+  }
+}

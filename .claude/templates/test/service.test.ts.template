@@ -1,0 +1,46 @@
+/**
+ * Tests for {{PASCAL_NAME}}{{TYPE}}
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { {{PASCAL_NAME}}{{TYPE}} } from './{{NAME}}';
+
+describe('{{PASCAL_NAME}}{{TYPE}}', () => {
+  let service: {{PASCAL_NAME}}{{TYPE}};
+  let mockDependencies: any;
+
+  beforeEach(() => {
+    // Setup mock dependencies
+    mockDependencies = {
+      cacheService: {
+        getSymbol: vi.fn(),
+        getFile: vi.fn(),
+        getDomain: vi.fn(),
+      },
+    };
+
+    service = new {{PASCAL_NAME}}{{TYPE}}(mockDependencies.cacheService);
+  });
+
+  describe('initialization', () => {
+    it('should be instantiable', () => {
+      expect(service).toBeDefined();
+    });
+  });
+
+  describe('core functionality', () => {
+    // TODO: Add specific tests for {{NAME}} service
+  });
+
+  describe('error handling', () => {
+    it('should handle missing data gracefully', async () => {
+      mockDependencies.cacheService.getSymbol.mockResolvedValue(null);
+      // Test graceful degradation
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle circular references', async () => {
+      // Test circular reference detection if applicable
+    });
+  });
+});

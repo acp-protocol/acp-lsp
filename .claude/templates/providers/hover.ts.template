@@ -1,0 +1,124 @@
+/**
+ * {{PASCAL_NAME}} - Hover information provider for ACP annotations
+ * Generated: {{DATE}}
+ */
+import {
+  Hover,
+  HoverParams,
+  MarkupContent,
+  MarkupKind,
+  Position,
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { AnnotationParser, ParsedAnnotation } from '../parsers/annotation';
+import { CacheService } from '../services/cache';
+import { VariableService } from '../services/variable';
+
+export class {{PASCAL_NAME}} {
+  constructor(
+    private annotationParser: AnnotationParser,
+    private cacheService: CacheService,
+    private variableService: VariableService
+  ) {}
+
+  async provideHover(
+    document: TextDocument,
+    params: HoverParams
+  ): Promise<Hover | null> {
+    const position = params.position;
+    
+    return (
+      await this.getAnnotationHover(document, position) ||
+      await this.getVariableHover(document, position) ||
+      await this.getSymbolHover(document, position) ||
+      null
+    );
+  }
+
+  private async getAnnotationHover(
+    document: TextDocument,
+    position: Position
+  ): Promise<Hover | null> {
+    const annotation = this.annotationParser.getAnnotationAtPosition(
+      document,
+      position
+    );
+    
+    if (!annotation) return null;
+
+    const content = this.formatAnnotationHover(annotation);
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: content,
+      },
+      range: annotation.range,
+    };
+  }
+
+  private formatAnnotationHover(annotation: ParsedAnnotation): string {
+    let content = `### @acp:${annotation.namespace}\n\n`;
+    
+    if (annotation.namespace === 'lock') {
+      content += this.formatLockLevelHover(annotation.value);
+    } else {
+      content += `**Value:** \`${annotation.value}\`\n\n`;
+    }
+    
+    if (annotation.directive) {
+      content += `**Directive:** ${annotation.directive}\n\n`;
+    }
+    
+    content += `---\n[📖 Documentation](https://acp-protocol.dev/spec/annotations#${annotation.namespace})`;
+    
+    return content;
+  }
+
+  private formatLockLevelHover(level: string): string {
+    const levels = [
+      'frozen', 'restricted', 'approval-required', 'tests-required',
+      'docs-required', 'review-required', 'normal', 'experimental'
+    ];
+    
+    const descriptions: Record<string, string> = {
+      'frozen': 'AI MUST NOT modify under any circumstances',
+      'restricted': 'AI MUST explain changes and get approval first',
+      'approval-required': 'AI SHOULD ask for approval for significant changes',
+      'tests-required': 'AI MUST include tests with changes',
+      'docs-required': 'AI MUST update documentation',
+      'review-required': 'Changes require code review',
+      'normal': 'AI may modify freely',
+      'experimental': 'AI may modify aggressively'
+    };
+
+    let content = `**Level:** \`${level}\`\n\n`;
+    content += `**Behavior:** ${descriptions[level] || 'Unknown'}\n\n`;
+    content += '```\n';
+    
+    for (const l of levels) {
+      const indicator = l === level ? '▓ ← YOU' : '░';
+      const bar = '█'.repeat(8 - levels.indexOf(l));
+      content += `${l.padEnd(18)} ${bar}${indicator}\n`;
+    }
+    
+    content += '```\n';
+    
+    return content;
+  }
+
+  private async getVariableHover(
+    document: TextDocument,
+    position: Position
+  ): Promise<Hover | null> {
+    // TODO: Implement variable hover
+    return null;
+  }
+
+  private async getSymbolHover(
+    document: TextDocument,
+    position: Position
+  ): Promise<Hover | null> {
+    // TODO: Implement symbol hover from cache
+    return null;
+  }
+}

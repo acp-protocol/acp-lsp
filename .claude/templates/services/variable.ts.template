@@ -1,0 +1,183 @@
+/**
+ * {{PASCAL_NAME}} - Variable resolution service for ACP
+ * Generated: {{DATE}}
+ */
+import { readFile } from 'fs/promises';
+import { CacheService } from './cache';
+
+export interface VariableEntry {
+  type: 'symbol' | 'file' | 'domain';
+  value: string;
+  description?: string;
+}
+
+export interface ResolvedVariable {
+  name: string;
+  type: string;
+  value: string;
+  summary: string;
+  full: object;
+  ref: string;
+  signature?: string;
+  description?: string;
+  definitionLine: number;
+}
+
+export class {{PASCAL_NAME}} {
+  private varsCache: Map<string, VariableEntry> = new Map();
+  private expansionStack: Set<string> = new Set();
+  private readonly MAX_DEPTH = 10;
+
+  constructor(private cacheService: CacheService) {}
+
+  async loadVarsFile(varsPath: string): Promise<void> {
+    try {
+      const content = await readFile(varsPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      
+      this.varsCache.clear();
+      for (const [name, entry] of Object.entries(parsed.variables || {})) {
+        this.varsCache.set(name, entry as VariableEntry);
+      }
+    } catch (error) {
+      console.warn(`Failed to load vars file: ${error}`);
+    }
+  }
+
+  async resolve(name: string, modifier?: string): Promise<ResolvedVariable | null> {
+    // Check for circular reference
+    if (this.expansionStack.has(name)) {
+      return {
+        name,
+        type: 'error',
+        value: `[CIRCULAR: ${Array.from(this.expansionStack).join(' → ')} → ${name}]`,
+        summary: 'Circular reference detected',
+        full: {},
+        ref: '',
+        definitionLine: 0,
+      };
+    }
+
+    if (this.expansionStack.size >= this.MAX_DEPTH) {
+      return null;
+    }
+
+    this.expansionStack.add(name);
+    
+    try {
+      const entry = this.varsCache.get(name);
+      if (!entry) {
+        return null;
+      }
+
+      return await this.expandVariable(name, entry, modifier);
+    } finally {
+      this.expansionStack.delete(name);
+    }
+  }
+
+  private async expandVariable(
+    name: string,
+    entry: VariableEntry,
+    modifier?: string
+  ): Promise<ResolvedVariable> {
+    switch (entry.type) {
+      case 'symbol':
+        return this.expandSymbolVariable(name, entry);
+      case 'file':
+        return this.expandFileVariable(name, entry);
+      case 'domain':
+        return this.expandDomainVariable(name, entry);
+      default:
+        throw new Error(`Unknown variable type: ${entry.type}`);
+    }
+  }
+
+  private async expandSymbolVariable(
+    name: string,
+    entry: VariableEntry
+  ): Promise<ResolvedVariable> {
+    const symbol = await this.cacheService.getSymbol(entry.value);
+    
+    const ref = symbol 
+      ? `${symbol.file}:${symbol.lines[0]}-${symbol.lines[1]}`
+      : entry.value;
+    const summary = symbol
+      ? `${symbol.name} (${ref}) ${symbol.summary || ''}`.trim()
+      : `Symbol not found: ${entry.value}`;
+
+    return {
+      name,
+      type: 'symbol',
+      value: entry.value,
+      summary,
+      full: symbol || entry,
+      ref,
+      signature: symbol?.signature,
+      description: entry.description,
+      definitionLine: this.findDefinitionLine(name),
+    };
+  }
+
+  private async expandFileVariable(
+    name: string,
+    entry: VariableEntry
+  ): Promise<ResolvedVariable> {
+    const file = await this.cacheService.getFile(entry.value);
+    
+    const summary = file
+      ? `${entry.value} (${file.module || 'unnamed'}) - ${file.lines} lines`
+      : entry.value;
+
+    return {
+      name,
+      type: 'file',
+      value: entry.value,
+      summary,
+      full: file || { path: entry.value },
+      ref: entry.value,
+      description: entry.description,
+      definitionLine: this.findDefinitionLine(name),
+    };
+  }
+
+  private async expandDomainVariable(
+    name: string,
+    entry: VariableEntry
+  ): Promise<ResolvedVariable> {
+    const domain = await this.cacheService.getDomain(entry.value);
+    
+    const summary = domain
+      ? `${entry.value} domain (${domain.files.length} files)`
+      : entry.value;
+
+    return {
+      name,
+      type: 'domain',
+      value: entry.value,
+      summary,
+      full: domain || { name: entry.value },
+      ref: entry.value,
+      description: entry.description || domain?.description,
+      definitionLine: this.findDefinitionLine(name),
+    };
+  }
+
+  applyModifier(resolved: ResolvedVariable, modifier: string): string {
+    switch (modifier) {
+      case 'full':
+        return JSON.stringify(resolved.full, null, 2);
+      case 'ref':
+        return resolved.ref;
+      case 'signature':
+        return resolved.signature || resolved.summary;
+      default:
+        return resolved.summary;
+    }
+  }
+
+  private findDefinitionLine(name: string): number {
+    // TODO: Parse vars file to find line number
+    return 0;
+  }
+}

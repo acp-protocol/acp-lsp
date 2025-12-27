@@ -1,0 +1,70 @@
+/**
+ * Tests for {{PASCAL_NAME}}{{TYPE}}
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { {{PASCAL_NAME}}{{TYPE}} } from './{{NAME}}';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+
+// Test utilities
+function createTestDocument(
+  content: string,
+  languageId: string = 'typescript',
+  uri: string = 'file:///test.ts'
+): TextDocument {
+  return TextDocument.create(uri, languageId, 1, content);
+}
+
+function createPosition(line: number, character: number) {
+  return { line, character };
+}
+
+describe('{{PASCAL_NAME}}{{TYPE}}', () => {
+  let provider: {{PASCAL_NAME}}{{TYPE}};
+  let mockDependencies: any;
+
+  beforeEach(() => {
+    // Setup mock dependencies
+    mockDependencies = {
+      annotationParser: {
+        parseDocument: vi.fn(),
+        getAnnotationAtPosition: vi.fn(),
+      },
+      cacheService: {
+        getSymbol: vi.fn(),
+        getFile: vi.fn(),
+        getDomain: vi.fn(),
+      },
+      variableService: {
+        resolve: vi.fn(),
+      },
+    };
+
+    provider = new {{PASCAL_NAME}}{{TYPE}}(
+      mockDependencies.annotationParser,
+      mockDependencies.cacheService,
+      mockDependencies.variableService
+    );
+  });
+
+  describe('basic functionality', () => {
+    it('should be instantiable', () => {
+      expect(provider).toBeDefined();
+    });
+
+    // TODO: Add specific tests for {{NAME}} provider
+  });
+
+  describe('edge cases', () => {
+    it('should handle empty document', () => {
+      const doc = createTestDocument('');
+      // Test with empty document
+      expect(doc.getText()).toBe('');
+    });
+
+    it('should handle document without ACP annotations', () => {
+      const doc = createTestDocument('const x = 1;');
+      // Test behavior with no annotations
+      expect(doc.getText()).not.toContain('@acp:');
+    });
+  });
+});
