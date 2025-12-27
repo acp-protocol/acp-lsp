@@ -1,0 +1,129 @@
+/**
+ * {{PASCAL_NAME}} - Go to Definition provider for ACP annotations
+ * Generated: {{DATE}}
+ */
+import {
+  Definition,
+  DefinitionParams,
+  Location,
+  LocationLink,
+  Position,
+  Range,
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { AnnotationParser } from '../parsers/annotation';
+import { CacheService } from '../services/cache';
+import { VariableService } from '../services/variable';
+import { URI } from 'vscode-uri';
+
+export class {{PASCAL_NAME}} {
+  constructor(
+    private annotationParser: AnnotationParser,
+    private cacheService: CacheService,
+    private variableService: VariableService
+  ) {}
+
+  async provideDefinition(
+    document: TextDocument,
+    params: DefinitionParams
+  ): Promise<Definition | null> {
+    const position = params.position;
+    
+    return (
+      await this.getVariableDefinition(document, position) ||
+      await this.getSymbolDefinition(document, position) ||
+      await this.getDomainDefinition(document, position) ||
+      null
+    );
+  }
+
+  private async getVariableDefinition(
+    document: TextDocument,
+    position: Position
+  ): Promise<Location | null> {
+    const wordRange = this.getWordRangeAtPosition(document, position);
+    if (!wordRange) return null;
+
+    const word = document.getText(wordRange);
+    if (!word.startsWith('$')) return null;
+
+    const varName = word.slice(1).split('.')[0];
+    const resolved = await this.variableService.resolve(varName);
+    
+    if (!resolved) return null;
+
+    // Navigate to .acp.vars.json
+    const varsUri = this.findVarsFile(document.uri);
+    if (!varsUri) return null;
+
+    return {
+      uri: varsUri,
+      range: {
+        start: { line: resolved.definitionLine, character: 0 },
+        end: { line: resolved.definitionLine, character: 100 },
+      },
+    };
+  }
+
+  private async getSymbolDefinition(
+    document: TextDocument,
+    position: Position
+  ): Promise<Location | null> {
+    // For symbol references in cache or annotations
+    const wordRange = this.getWordRangeAtPosition(document, position);
+    if (!wordRange) return null;
+
+    const word = document.getText(wordRange);
+    const symbol = await this.cacheService.getSymbol(word);
+    
+    if (!symbol) return null;
+
+    return {
+      uri: URI.file(symbol.file).toString(),
+      range: {
+        start: { line: symbol.lines[0] - 1, character: 0 },
+        end: { line: symbol.lines[1] - 1, character: 0 },
+      },
+    };
+  }
+
+  private async getDomainDefinition(
+    document: TextDocument,
+    position: Position
+  ): Promise<Location | null> {
+    // Navigate to domain definition in config
+    return null;
+  }
+
+  private getWordRangeAtPosition(
+    document: TextDocument,
+    position: Position
+  ): Range | null {
+    const line = document.getText({
+      start: { line: position.line, character: 0 },
+      end: { line: position.line + 1, character: 0 },
+    });
+
+    const wordPattern = /[\$\w][\w\d_.]*/g;
+    let match;
+
+    while ((match = wordPattern.exec(line)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      
+      if (position.character >= start && position.character <= end) {
+        return {
+          start: { line: position.line, character: start },
+          end: { line: position.line, character: end },
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private findVarsFile(documentUri: string): string | null {
+    // TODO: Find .acp.vars.json relative to document
+    return null;
+  }
+}

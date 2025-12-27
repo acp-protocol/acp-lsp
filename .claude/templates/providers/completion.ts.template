@@ -1,0 +1,195 @@
+/**
+ * {{PASCAL_NAME}} - Completion provider for ACP annotations
+ * Generated: {{DATE}}
+ */
+import {
+  CompletionItem,
+  CompletionItemKind,
+  CompletionParams,
+  CompletionList,
+  InsertTextFormat,
+  MarkupKind,
+  Position,
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { CacheService } from '../services/cache';
+import { VariableService } from '../services/variable';
+
+export class {{PASCAL_NAME}} {
+  private namespaceCompletions: CompletionItem[];
+  private lockLevelCompletions: CompletionItem[];
+
+  constructor(
+    private cacheService: CacheService,
+    private variableService: VariableService
+  ) {
+    this.namespaceCompletions = this.buildNamespaceCompletions();
+    this.lockLevelCompletions = this.buildLockLevelCompletions();
+  }
+
+  async provideCompletions(
+    document: TextDocument,
+    params: CompletionParams
+  ): Promise<CompletionList> {
+    const position = params.position;
+    const linePrefix = this.getLinePrefix(document, position);
+
+    const items = await this.getCompletionItems(linePrefix, document);
+
+    return {
+      isIncomplete: false,
+      items,
+    };
+  }
+
+  async resolveCompletionItem(item: CompletionItem): Promise<CompletionItem> {
+    // Add detailed documentation on resolve
+    if (item.data?.type === 'namespace') {
+      item.documentation = {
+        kind: MarkupKind.Markdown,
+        value: this.getNamespaceDocumentation(item.label as string),
+      };
+    }
+    return item;
+  }
+
+  private getLinePrefix(document: TextDocument, position: Position): string {
+    return document.getText({
+      start: { line: position.line, character: 0 },
+      end: position,
+    });
+  }
+
+  private async getCompletionItems(
+    linePrefix: string,
+    document: TextDocument
+  ): Promise<CompletionItem[]> {
+    // After @acp: - offer namespaces
+    if (/@acp:$/.test(linePrefix)) {
+      return this.namespaceCompletions;
+    }
+
+    // After @acp:lock - offer lock levels
+    if (/@acp:lock\s+$/.test(linePrefix)) {
+      return this.lockLevelCompletions;
+    }
+
+    // After @acp:domain - offer domains
+    if (/@acp:domain\s+$/.test(linePrefix)) {
+      return this.getDomainCompletions();
+    }
+
+    // Variable context - offer variables
+    if (/\$[A-Z_]*$/.test(linePrefix)) {
+      return this.getVariableCompletions(linePrefix);
+    }
+
+    // In comment - offer @acp: prefix
+    if (this.isInComment(linePrefix)) {
+      return this.getPrefixCompletion();
+    }
+
+    return [];
+  }
+
+  private buildNamespaceCompletions(): CompletionItem[] {
+    const namespaces = [
+      { name: 'lock', desc: 'Set modification restrictions', detail: 'Constraint' },
+      { name: 'domain', desc: 'Assign to business domain', detail: 'Organization' },
+      { name: 'layer', desc: 'Assign to architectural layer', detail: 'Organization' },
+      { name: 'owner', desc: 'Designate code owner', detail: 'Organization' },
+      { name: 'status', desc: 'Mark development status', detail: 'Lifecycle' },
+      { name: 'context', desc: 'Provide AI context', detail: 'Documentation' },
+      { name: 'ref', desc: 'Link to documentation', detail: 'Documentation' },
+      { name: 'related', desc: 'Link related code', detail: 'Documentation' },
+      { name: 'depends', desc: 'Declare dependencies', detail: 'Documentation' },
+      { name: 'critical', desc: 'Mark critical code', detail: 'Constraint' },
+      { name: 'perf', desc: 'Performance annotation', detail: 'Constraint' },
+      { name: 'security', desc: 'Security annotation', detail: 'Constraint' },
+      { name: 'style', desc: 'Style constraints', detail: 'Constraint' },
+      { name: 'todo', desc: 'TODO with metadata', detail: 'Lifecycle' },
+      { name: 'hack', desc: 'Temporary hack with expiry', detail: 'Lifecycle' },
+      { name: 'note', desc: 'Developer note', detail: 'Documentation' },
+    ];
+
+    return namespaces.map((ns, index) => ({
+      label: ns.name,
+      kind: CompletionItemKind.Keyword,
+      detail: ns.detail,
+      sortText: String(index).padStart(2, '0'),
+      insertText: `${ns.name} `,
+      data: { type: 'namespace', name: ns.name },
+    }));
+  }
+
+  private buildLockLevelCompletions(): CompletionItem[] {
+    const levels = [
+      { level: 'frozen', desc: 'AI MUST NOT modify under any circumstances' },
+      { level: 'restricted', desc: 'AI MUST explain changes and get approval first' },
+      { level: 'approval-required', desc: 'AI SHOULD ask for approval for significant changes' },
+      { level: 'tests-required', desc: 'AI MUST include tests with any changes' },
+      { level: 'docs-required', desc: 'AI MUST update documentation with changes' },
+      { level: 'review-required', desc: 'Changes require code review' },
+      { level: 'normal', desc: 'AI may modify freely (default)' },
+      { level: 'experimental', desc: 'AI may modify aggressively for experimentation' },
+    ];
+
+    return levels.map((l, index) => ({
+      label: l.level,
+      kind: CompletionItemKind.EnumMember,
+      detail: l.desc,
+      sortText: String(index).padStart(2, '0'),
+      insertText: `${l.level} - `,
+      insertTextFormat: InsertTextFormat.PlainText,
+    }));
+  }
+
+  private async getDomainCompletions(): Promise<CompletionItem[]> {
+    const domains = await this.cacheService.getAllDomains?.() || [];
+    return domains.map((d: any) => ({
+      label: d.name,
+      kind: CompletionItemKind.Module,
+      detail: d.description || `${d.files?.length || 0} files`,
+      insertText: `${d.name} - `,
+    }));
+  }
+
+  private async getVariableCompletions(prefix: string): Promise<CompletionItem[]> {
+    // TODO: Load variables from vars service
+    const prefixTypes = [
+      { prefix: '$SYM_', desc: 'Symbol variable', kind: CompletionItemKind.Variable },
+      { prefix: '$FILE_', desc: 'File variable', kind: CompletionItemKind.File },
+      { prefix: '$DOM_', desc: 'Domain variable', kind: CompletionItemKind.Module },
+    ];
+
+    return prefixTypes.map((p) => ({
+      label: p.prefix,
+      kind: p.kind,
+      detail: p.desc,
+      insertText: p.prefix.slice(1), // Remove $ as it's already typed
+    }));
+  }
+
+  private getPrefixCompletion(): CompletionItem[] {
+    return [{
+      label: '@acp:',
+      kind: CompletionItemKind.Snippet,
+      detail: 'ACP annotation',
+      insertText: '@acp:${1|lock,domain,context|} ${2:value} - ${3:directive}',
+      insertTextFormat: InsertTextFormat.Snippet,
+    }];
+  }
+
+  private isInComment(line: string): boolean {
+    return /\/\/|#|\/\*/.test(line);
+  }
+
+  private getNamespaceDocumentation(namespace: string): string {
+    const docs: Record<string, string> = {
+      lock: '## @acp:lock\n\nSets modification restrictions for AI tools.\n\n**Values:** frozen, restricted, approval-required, tests-required, docs-required, review-required, normal, experimental',
+      domain: '## @acp:domain\n\nAssigns code to a business domain for organization.',
+      context: '## @acp:context\n\nProvides additional context for AI tools.',
+    };
+    return docs[namespace] || `## @acp:${namespace}`;
+  }
+}
