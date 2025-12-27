@@ -10,19 +10,16 @@ import {
   InsertTextFormat,
   MarkupKind,
   type CompletionList,
-  type Connection,
 } from 'vscode-languageserver'
 import type { TextDocument } from 'vscode-languageserver-textdocument'
 import type { DocumentManager } from '../documents/manager.js'
 import type { Logger } from '../utils/logger.js'
 import {
-  ALL_NAMESPACES,
   FILE_LEVEL_NAMESPACES,
   SYMBOL_LEVEL_NAMESPACES,
   CONSTRAINT_NAMESPACES,
   INLINE_NAMESPACES,
   type LockLevel,
-  getCategoryForNamespace,
 } from '../parsers/types.js'
 
 /**
@@ -430,7 +427,7 @@ export class CompletionProvider {
   /**
    * Get variable completions from cache/vars files
    */
-  private getVariableCompletions(document: TextDocument, prefix: string): CompletionItem[] {
+  private getVariableCompletions(_document: TextDocument, prefix: string): CompletionItem[] {
     const items: CompletionItem[] = []
 
     // Get variables from .acp.vars.json if available
@@ -505,7 +502,7 @@ export class CompletionProvider {
   /**
    * Get JSON property completions for ACP config files
    */
-  private getJsonPropertyCompletions(document: TextDocument, params: CompletionParams): CompletionItem[] {
+  private getJsonPropertyCompletions(document: TextDocument, _params: CompletionParams): CompletionItem[] {
     const metadata = this.documentManager.getMetadata(document.uri)
     if (!metadata) {
       return []

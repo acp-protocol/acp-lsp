@@ -12,6 +12,11 @@ import {
   type LockLevel,
   getCategoryForNamespace,
 } from '../parsers/types.js'
+import {
+  VariableResolutionService,
+  BUILTIN_VARIABLES,
+  VALID_MODIFIERS,
+} from '../services/variable-resolution.js'
 
 /**
  * Annotation match result from cursor position detection
@@ -309,10 +314,12 @@ const MODIFIER_DESCRIPTIONS: Record<string, string> = {
 export class HoverProvider {
   private documentManager: DocumentManager
   private logger: Logger
+  private variableService: VariableResolutionService
 
   constructor(documentManager: DocumentManager, logger: Logger) {
     this.documentManager = documentManager
     this.logger = logger
+    this.variableService = new VariableResolutionService(documentManager, logger)
   }
 
   /**
@@ -621,17 +628,18 @@ export class HoverProvider {
   }
 
   /**
-   * Format variable hover
+   * Format variable hover using VariableResolutionService
    */
   private formatVariableHover(document: TextDocument, variable: VariableMatch): string {
     const { identifier, modifier } = variable
 
     let content = `### Variable: \`$${identifier}${modifier ? `.${modifier}` : ''}\`\n\n`
 
-    // Try to resolve the variable from .acp.vars.json
-    const resolved = this.resolveVariable(document, identifier)
+    // Use VariableResolutionService for resolution
+    const result = this.variableService.resolve(document, identifier, modifier)
 
-    if (resolved) {
+    if (result.success) {
+      const resolved = result.variable
       content += `**Type:** \`${resolved.type}\`\n\n`
       content += `**Value:** \`${resolved.value}\`\n\n`
 
@@ -640,108 +648,57 @@ export class HoverProvider {
       }
 
       if (modifier) {
-        const modDesc = MODIFIER_DESCRIPTIONS[modifier]
-        if (modDesc) {
+        if (VALID_MODIFIERS.includes(modifier as typeof VALID_MODIFIERS[number])) {
+          const modDesc = MODIFIER_DESCRIPTIONS[modifier]
           content += `**Modifier (${modifier}):** ${modDesc}\n\n`
+          // Show expanded value with modifier
+          const expanded = this.variableService.applyModifier(resolved, modifier as typeof VALID_MODIFIERS[number])
+          content += `**Expanded:**\n\`\`\`\n${expanded}\n\`\`\`\n\n`
         } else {
-          content += `⚠️ Unknown modifier: \`${modifier}\`\n\n`
+          content += `**Modifier (${modifier}):** ${MODIFIER_DESCRIPTIONS[modifier] || 'Unknown modifier'}\n\n`
         }
       }
 
       content += `**Source:** ${resolved.source}\n`
+
+      // Show definition location if available
+      if (resolved.definitionLine > 0) {
+        content += `\n*Defined at line ${resolved.definitionLine}*\n`
+      }
     } else {
-      // Check for built-in variables
-      const builtinInfo = this.getBuiltinVariableInfo(identifier)
-      if (builtinInfo) {
-        content += `**Type:** Built-in\n\n`
-        content += `${builtinInfo.description}\n\n`
-        content += `**Expands to:** ${builtinInfo.expansion}\n`
+      // Handle resolution errors
+      const error = result.error
+      if (error.type === 'undefined') {
+        // Check if it's a built-in variable (might be lowercase)
+        const builtin = BUILTIN_VARIABLES[identifier]
+        if (builtin) {
+          content += `**Type:** Built-in\n\n`
+          content += `${builtin.description}\n\n`
+          content += `**Expands to:** \`${builtin.expansion}\`\n`
+          if (builtin.contextual) {
+            content += `\n*This value depends on the current file context*\n`
+          }
+        } else {
+          content += `**Undefined variable**\n\n`
+          content += `This variable is not defined in any \`.acp.vars.json\` file.\n\n`
+          content += `**Available options:**\n`
+          content += `- Define it in \`.acp.vars.json\`\n`
+          content += `- Use a built-in variable: ${Object.keys(BUILTIN_VARIABLES).map(v => `\`$${v}\``).join(', ')}\n`
+        }
+      } else if (error.type === 'invalid') {
+        content += `**Invalid:** ${error.message}\n`
+      } else if (error.type === 'circular') {
+        content += `**Circular reference detected**\n\n`
+        content += `Resolution chain: ${error.chain?.join(' -> ')}\n`
+      } else if (error.type === 'depth') {
+        content += `**Maximum expansion depth exceeded**\n\n`
+        content += error.message + '\n'
       } else {
-        content += `⚠️ **Undefined variable**\n\n`
-        content += `This variable is not defined in any \`.acp.vars.json\` file.\n\n`
-        content += `**Available options:**\n`
-        content += `- Define it in \`.acp.vars.json\`\n`
-        content += `- Use a built-in variable: \`$FILE\`, \`$LINE\`, \`$FUNCTION\`, \`$CLASS\`, \`$MODULE\`\n`
+        content += `**Error:** ${error.message}\n`
       }
     }
 
     return content
-  }
-
-  /**
-   * Resolve a variable from .acp.vars.json files
-   */
-  private resolveVariable(
-    _document: TextDocument,
-    identifier: string
-  ): { type: string; value: string; description?: string; source: string } | null {
-    // Get all .acp.vars.json documents
-    const varsDocuments = this.documentManager.all().filter((doc) => {
-      const metadata = this.documentManager.getMetadata(doc.uri)
-      return metadata?.isAcpVars
-    })
-
-    for (const varsDoc of varsDocuments) {
-      try {
-        const varsContent = JSON.parse(varsDoc.getText())
-        if (varsContent.variables && typeof varsContent.variables === 'object') {
-          const entry = varsContent.variables[identifier]
-          if (entry !== undefined) {
-            // Handle both simple values and objects with type/value/description
-            if (typeof entry === 'object' && entry !== null) {
-              return {
-                type: entry.type || 'string',
-                value: String(entry.value ?? entry),
-                description: entry.description,
-                source: varsDoc.uri.split('/').pop() || varsDoc.uri,
-              }
-            } else {
-              return {
-                type: typeof entry,
-                value: String(entry),
-                source: varsDoc.uri.split('/').pop() || varsDoc.uri,
-              }
-            }
-          }
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
-
-    return null
-  }
-
-  /**
-   * Get information about built-in variables
-   */
-  private getBuiltinVariableInfo(
-    identifier: string
-  ): { description: string; expansion: string } | null {
-    const builtins: Record<string, { description: string; expansion: string }> = {
-      FILE: {
-        description: 'Current file path relative to workspace root',
-        expansion: '`src/example.ts`',
-      },
-      LINE: {
-        description: 'Current line number in the file',
-        expansion: '`42`',
-      },
-      FUNCTION: {
-        description: 'Name of the enclosing function or method',
-        expansion: '`handleRequest`',
-      },
-      CLASS: {
-        description: 'Name of the enclosing class',
-        expansion: '`UserService`',
-      },
-      MODULE: {
-        description: 'Module name from @acp:module annotation',
-        expansion: '`AuthModule`',
-      },
-    }
-
-    return builtins[identifier] || null
   }
 
   /**

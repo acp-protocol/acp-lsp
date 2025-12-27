@@ -270,7 +270,7 @@ describe('HoverProvider', () => {
       expect(result).not.toBeNull()
       if (typeof result?.contents === 'object' && 'value' in result.contents) {
         expect(result.contents.value).toContain('$FILE')
-        expect(result.contents.value).toContain('Built-in')
+        expect(result.contents.value).toContain('built-in')
         expect(result.contents.value).toContain('file path')
       }
     })
