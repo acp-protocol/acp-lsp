@@ -9,15 +9,50 @@
 export const ACP_ANNOTATION_PREFIX = '@acp:'
 
 /**
- * Known ACP annotation types
+ * Known ACP annotation types (all namespaces)
+ * File-level: purpose, module, domain, owner, layer, stability, ref
+ * Symbol-level: fn, class, method, param, returns, throws, example, deprecated
+ * Constraint: lock, lock-reason, style, behavior, quality, test
+ * Inline: critical, todo, fixme, perf, hack, debug
+ * Legacy: category, agent-instructions, constraint, context, exclude, include, priority, see-also, version
  */
 export const ACP_ANNOTATION_TYPES = [
+  // File-level annotations
+  'purpose',
+  'module',
+  'domain',
+  'owner',
+  'layer',
+  'stability',
+  'ref',
+  // Symbol-level annotations
+  'fn',
+  'class',
+  'method',
+  'param',
+  'returns',
+  'throws',
+  'example',
+  'deprecated',
+  // Constraint annotations
+  'lock',
+  'lock-reason',
+  'style',
+  'behavior',
+  'quality',
+  'test',
+  // Inline annotations
+  'critical',
+  'todo',
+  'fixme',
+  'perf',
+  'hack',
+  'debug',
+  // Legacy/additional annotations
   'category',
   'agent-instructions',
   'constraint',
   'context',
-  'deprecated',
-  'example',
   'exclude',
   'include',
   'priority',

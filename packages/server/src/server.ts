@@ -18,6 +18,8 @@ import { DocumentManager } from './documents/manager.js'
 import { DocumentSyncHandler } from './documents/sync.js'
 import { ConfigurationStore } from './services/configuration.js'
 import { DiagnosticsProvider } from './providers/diagnostics.js'
+import { CompletionProvider } from './providers/completion.js'
+import { HoverProvider } from './providers/hover.js'
 import { Logger, LogLevel } from './utils/logger.js'
 import { SERVER_NAME, SERVER_VERSION } from '@acp-lsp/shared'
 
@@ -32,6 +34,8 @@ let documentManager: DocumentManager
 let documentSyncHandler: DocumentSyncHandler
 let configStore: ConfigurationStore
 let diagnosticsProvider: DiagnosticsProvider
+let completionProvider: CompletionProvider
+let hoverProvider: HoverProvider
 let logger: Logger
 
 // Client capability flags
@@ -72,6 +76,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
   configStore = new ConfigurationStore(connection, hasConfigurationCapability)
   documentManager = new DocumentManager(documents, logger)
   diagnosticsProvider = new DiagnosticsProvider(connection, documentManager, logger)
+  completionProvider = new CompletionProvider(documentManager, logger)
+  hoverProvider = new HoverProvider(documentManager, logger)
 
   // Initialize document sync handler with debounced validation
   documentSyncHandler = new DocumentSyncHandler(
@@ -131,6 +137,30 @@ connection.onDidChangeConfiguration((change) => {
   documents.all().forEach((doc) => {
     diagnosticsProvider.validate(doc)
   })
+})
+
+/**
+ * Handle completion requests
+ * Provides context-aware completions for ACP annotations
+ */
+connection.onCompletion((params) => {
+  return completionProvider.onCompletion(params)
+})
+
+/**
+ * Handle completion resolve requests
+ * Adds additional documentation to completion items
+ */
+connection.onCompletionResolve((item) => {
+  return completionProvider.onCompletionResolve(item)
+})
+
+/**
+ * Handle hover requests
+ * Provides rich contextual information for ACP annotations and variables
+ */
+connection.onHover((params) => {
+  return hoverProvider.onHover(params)
 })
 
 /**
